@@ -35,6 +35,24 @@ class CommandTasks extends Command
                 3,
                 storage_path('logs/TaskErrors.log')
             );
+            try {
+                $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQAD3rf7Zs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ZaVhXYMwP0o1jDWkg7VpGU_7mWzuu--nBEw0eHYE7EM';
+                $tz = new \DateTimeZone('-0600');
+                $fecha = (new \DateTime('now', $tz))->format('Y-m-d H:i:s');
+                $payload = json_encode([
+                    'text' => "🚨 *ERROR FATAL EN COMANDO*\n*Comando:* `app:command-tasks`\n*Error:* " . $th->getMessage() . "\n*Archivo:* " . basename($th->getFile()) . " línea " . $th->getLine() . "\n*Fecha:* " . $fecha
+                ]);
+                $ch = curl_init($webhookUrl);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_exec($ch);
+                curl_close($ch);
+            } catch (\Throwable $e) {
+                // No romper la ejecucion en caso de error en el envio de notificacion
+            }
         }
     }
 }
