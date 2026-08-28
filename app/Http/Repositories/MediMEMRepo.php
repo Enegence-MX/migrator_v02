@@ -201,8 +201,8 @@ class MediMEMRepo
                     );
                 } catch (Throwable $apiEx) {
                     $this->sendGoogleChatNotification(
-                        "Falla HTTP/API en petición CFE",
-                        $apiEx->getMessage(),
+                        "Falla HTTP/API (Central Eléctrica)",
+                        "TeamID: {$centralElectrica->teamId} | Nombre: {$centralElectrica->name} | Error: " . $apiEx->getMessage(),
                         $centralElectrica->rmu
                     );
                     $hasApiError = true;
@@ -211,8 +211,8 @@ class MediMEMRepo
 
                 if (null === $rmu5MinutalJsonDataList) {
                     $this->sendGoogleChatNotification(
-                        "Respuesta nula o 401 Unauthorized de API CFE",
-                        "La API devolvió NULL para el rango {$range['start']} a {$range['end']}.",
+                        "Respuesta nula o 401 (Central Eléctrica)",
+                        "TeamID: {$centralElectrica->teamId} | Nombre: {$centralElectrica->name} | Rango: {$range['start']} a {$range['end']}.",
                         $centralElectrica->rmu
                     );
                     $hasApiError = true;
@@ -429,15 +429,30 @@ class MediMEMRepo
             foreach ($dateRanges as $range) {
                 $formatedRRMU = str_replace(' ', '', $centroDeCarga->rmu);
                 $formatedRRMU = str_replace('-', '', $formatedRRMU);
-                $rpu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
-                    $formatedRRMU,
-                    $range['start'],
-                    $range['end'],
-                    $centroDeCarga->tokenMediMEM,
-                    $sendEmail,
-                );
+                try {
+                    $rpu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
+                        $formatedRRMU,
+                        $range['start'],
+                        $range['end'],
+                        $centroDeCarga->tokenMediMEM,
+                        $sendEmail,
+                    );
+                } catch (Throwable $apiEx) {
+                    $this->sendGoogleChatNotification(
+                        "Falla HTTP/API (Centro de Carga)",
+                        "TeamID: {$centroDeCarga->teamId} | Error: " . $apiEx->getMessage(),
+                        $centroDeCarga->rpu
+                    );
+                    $sendEmail = false;
+                    continue;
+                }
 
                 if (null === $rpu5MinutalJsonDataList) {
+                    $this->sendGoogleChatNotification(
+                        "Respuesta nula o 401 (Centro de Carga)",
+                        "TeamID: {$centroDeCarga->teamId} | Rango: {$range['start']} a {$range['end']}.",
+                        $centroDeCarga->rpu
+                    );
                     $sendEmail = false;
                     continue;
                 }
