@@ -188,30 +188,44 @@ class MediMEMRepo
             $hasApiError = false;
             
             foreach ($dateRanges as $range) {
-                $formatedRRMU = str_replace(' ', '', $centralElectrica->rmu);
-                $formatedRRMU = str_replace('-', '', $formatedRRMU);
+                $formatedRRMU = str_replace([' ', '-'], '', $centralElectrica->rmu);
                 
-                try {
-                    $rmu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
-                        $formatedRRMU,
-                        $range['start'],
-                        $range['end'],
-                        $centralElectrica->tokenMediMEM,
-                        $sendEmail,
-                    );
-                } catch (Throwable $apiEx) {
-                    $this->sendGoogleChatNotification(
-                        "Falla HTTP/API (Central Eléctrica)",
-                        "TeamID: {$centralElectrica->teamId} | Nombre: {$centralElectrica->name} | Error: " . $apiEx->getMessage(),
-                        $centralElectrica->rmu
-                    );
-                    $hasApiError = true;
-                    break;
+                $rmu5MinutalJsonDataList = null;
+                $maxApiAttempts = 3;
+                $apiAttempt = 0;
+
+                while ($apiAttempt < $maxApiAttempts) {
+                    $apiAttempt++;
+                    try {
+                        $rmu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
+                            $formatedRRMU,
+                            $range['start'],
+                            $range['end'],
+                            $centralElectrica->tokenMediMEM,
+                            $sendEmail
+                        );
+
+                        if (null !== $rmu5MinutalJsonDataList) {
+                            break;
+                        }
+                    } catch (Throwable $apiEx) {
+                        if ($apiAttempt >= $maxApiAttempts) {
+                            $this->sendGoogleChatNotification(
+                                "Falla HTTP/API (Central Eléctrica tras {$maxApiAttempts} reintentos)",
+                                "TeamID: {$centralElectrica->teamId} | Nombre: {$centralElectrica->name} | Error: " . $apiEx->getMessage(),
+                                $centralElectrica->rmu
+                            );
+                            $hasApiError = true;
+                            break 2;
+                        }
+                    }
+                    
+                    sleep(2);
                 }
 
                 if (null === $rmu5MinutalJsonDataList) {
                     $this->sendGoogleChatNotification(
-                        "Respuesta nula o 401 (Central Eléctrica)",
+                        "Respuesta nula o 401 (Central Eléctrica tras {$maxApiAttempts} reintentos)",
                         "TeamID: {$centralElectrica->teamId} | Nombre: {$centralElectrica->name} | Rango: {$range['start']} a {$range['end']}.",
                         $centralElectrica->rmu
                     );
@@ -230,6 +244,8 @@ class MediMEMRepo
 
                 // Merge the results
                 $allRmu5MinutalJsonDataList = array_merge($allRmu5MinutalJsonDataList, $rmu5MinutalJsonDataList);
+
+                usleep(300000);
             }
 
             if ($hasApiError || empty($allRmu5MinutalJsonDataList)) {
@@ -434,35 +450,54 @@ class MediMEMRepo
 
             // Collect all measurements from multiple API calls
             $allRpu5MinutalJsonDataList = [];
+            $hasApiError = false;
+
             foreach ($dateRanges as $range) {
-                $formatedRRMU = str_replace(' ', '', $centroDeCarga->rmu);
-                $formatedRRMU = str_replace('-', '', $formatedRRMU);
-                try {
-                    $rpu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
-                        $formatedRRMU,
-                        $range['start'],
-                        $range['end'],
-                        $centroDeCarga->tokenMediMEM,
-                        $sendEmail,
-                    );
-                } catch (Throwable $apiEx) {
-                    $this->sendGoogleChatNotification(
-                        "Falla HTTP/API (Centro de Carga)",
-                        "TeamID: {$centroDeCarga->teamId} | Error: " . $apiEx->getMessage(),
-                        $centroDeCarga->rpu
-                    );
-                    $sendEmail = false;
-                    continue;
+                $formatedRRMU = str_replace([' ', '-'], '', $centroDeCarga->rmu);
+                
+                $rpu5MinutalJsonDataList = null;
+                $maxApiAttempts = 3;
+                $apiAttempt = 0;
+
+                while ($apiAttempt < $maxApiAttempts) {
+                    $apiAttempt++;
+                    try {
+                        $rpu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
+                            $formatedRRMU,
+                            $range['start'],
+                            $range['end'],
+                            $centroDeCarga->tokenMediMEM,
+                            $sendEmail
+                        );
+
+                        if (null !== $rpu5MinutalJsonDataList) {
+                            break;
+                        }
+                    } catch (Throwable $apiEx) {
+                        if ($apiAttempt >= $maxApiAttempts) {
+                            $this->sendGoogleChatNotification(
+                                "Falla HTTP/API (Centro de Carga tras {$maxApiAttempts} reintentos)",
+                                "TeamID: {$centroDeCarga->teamId} | Error: " . $apiEx->getMessage(),
+                                $centroDeCarga->rpu
+                            );
+                            $sendEmail = false;
+                            $hasApiError = true;
+                            break 2;
+                        }
+                    }
+                    
+                    sleep(2);
                 }
 
                 if (null === $rpu5MinutalJsonDataList) {
                     $this->sendGoogleChatNotification(
-                        "Respuesta nula o 401 (Centro de Carga)",
+                        "Respuesta nula o 401 (Centro de Carga tras {$maxApiAttempts} reintentos)",
                         "TeamID: {$centroDeCarga->teamId} | Rango: {$range['start']} a {$range['end']}.",
                         $centroDeCarga->rpu
                     );
                     $sendEmail = false;
-                    continue;
+                    $hasApiError = true;
+                    break;
                 }
 
                 if (empty($rpu5MinutalJsonDataList)) {
@@ -475,6 +510,12 @@ class MediMEMRepo
 
                 // Merge the results
                 $allRpu5MinutalJsonDataList = array_merge($allRpu5MinutalJsonDataList, $rpu5MinutalJsonDataList);
+
+                usleep(300000);
+            }
+
+            if ($hasApiError || empty($allRpu5MinutalJsonDataList)) {
+                continue;
             }
 
             // Second step: Fill up missing data
