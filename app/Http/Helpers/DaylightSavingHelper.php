@@ -58,13 +58,23 @@ class DaylightSavingHelper
      */
     public static function getCachedDaylightSavingDates($sistema)
     {
+        static $runtimeCache = [];
+
+        if (isset($runtimeCache[$sistema])) {
+            return $runtimeCache[$sistema];
+        }
+
         $cacheKey = "daylight_saving_dates_{$sistema}";
         $cacheTime = 86400 * 30; // Cache for 30 days
-        
-        return cache()->remember($cacheKey, $cacheTime, function () use ($sistema) {
+
+        $dates = cache()->remember($cacheKey, $cacheTime, function () use ($sistema) {
             $timezone = ($sistema == 'BCA') ? 'America/Los_Angeles' : 'America/Mexico_City';
             return self::generateDaylightSavingDates('2016-01-01', '2028-12-31', $timezone);
         });
+
+        $runtimeCache[$sistema] = $dates;
+
+        return $dates;
     }
     
     /**
@@ -106,14 +116,12 @@ class DaylightSavingHelper
             }
         }
         
-        // Check if dates are daylight savings dates
         if (in_array($date, $summerDaylightSavingDates)) {
             return 'summer';
         } elseif (in_array($date, $winterDaylightSavingDates)) {
             return 'winter';
         }
         
-        // Check if dates are daylight savings one day after dates
         if (in_array($date, $summerDaylightDatesOneDayAfter)) {
             return 'summerOneDayAfter';
         } elseif (in_array($date, $winterDaylightDatesOneDayAfter)) {
