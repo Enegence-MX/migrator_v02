@@ -220,6 +220,14 @@ class MediMEMRepo
                     break;
                 }
 
+                if (empty($rmu5MinutalJsonDataList)) {
+                    $this->sendGoogleChatNotification(
+                        "API CFE devolvió 0 registros (Central Eléctrica)",
+                        "TeamID: {$centralElectrica->teamId} | La API respondió sin lecturas (arreglo vacío []) para el rango {$range['start']} a {$range['end']}.",
+                        $centralElectrica->rmu
+                    );
+                }
+
                 // Merge the results
                 $allRmu5MinutalJsonDataList = array_merge($allRmu5MinutalJsonDataList, $rmu5MinutalJsonDataList);
             }
@@ -455,6 +463,14 @@ class MediMEMRepo
                     );
                     $sendEmail = false;
                     continue;
+                }
+
+                if (empty($rpu5MinutalJsonDataList)) {
+                    $this->sendGoogleChatNotification(
+                        "API CFE devolvió 0 registros (Centro de Carga)",
+                        "TeamID: {$centroDeCarga->teamId} | La API respondió sin lecturas (arreglo vacío []) para el rango {$range['start']} a {$range['end']}.",
+                        $centroDeCarga->rpu
+                    );
                 }
 
                 // Merge the results
