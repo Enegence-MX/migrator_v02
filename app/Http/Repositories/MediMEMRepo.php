@@ -23,7 +23,9 @@ use App\Models\Festivo;
 use Illuminate\Support\Facades\DB;
 use DateTime;
 use Exception;
+use Throwable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 /**
  * Class service for CFE Distribucion endpoint consuming.
@@ -41,6 +43,7 @@ class MediMEMRepo
 
     protected $mediMEMService;
     protected $measurementsRepo;
+    protected $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQAD3rf7Zs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ZaVhXYMwP0o1jDWkg7VpGU_7mWzuu--nBEw0eHYE7EM';
 
     /**
      * Construct function.
@@ -56,6 +59,34 @@ class MediMEMRepo
     ) {
         $this->mediMEMService   = $mediMEMService;
         $this->measurementsRepo = $measurementsRepo;
+    }
+
+    protected function sendGoogleChatNotification($title, $message, $rpuOrContext = 'N/A')
+    {
+        $tz = new \DateTimeZone('-0600');
+        $date = new \DateTime('now', $tz);
+        $fecha = $date->format('Y-m-d H:i:s');
+
+        $payload = [
+            'text' => "🚨 *ERROR EN TAREA MEDIMEM*\n*Contexto/RPU/RMU:* `{$rpuOrContext}`\n*Título:* {$title}\n*Detalle:* {$message}\n*Fecha:* " . $fecha
+        ];
+
+        try {
+            if (class_exists('\Illuminate\Support\Facades\Http')) {
+                Http::timeout(5)->post($this->webhookUrl, $payload);
+            } else {
+                $ch = curl_init($this->webhookUrl);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_exec($ch);
+                curl_close($ch);
+            }
+        } catch (Throwable $e) {
+            Log::channel('task_errors')->error("No se pudo enviar la notificación a Google Chat: " . $e->getMessage());
+        }
     }
 
     /**
@@ -89,7 +120,11 @@ class MediMEMRepo
         $startDateParam = null,
         $endDateParam = null
     ) {
-        $yesterday      = new DateTime();
+        $totalRecordsSynced = 0;
+        $processedMeters = 0;
+
+        try {
+            $yesterday      = new DateTime();
         $yesterday->modify('-8 day');
         $yesterdayMinus61 = new DateTime();
         $yesterdayMinus61->modify('-61 days');
@@ -150,25 +185,47 @@ class MediMEMRepo
             $dataFromChargeCenter = $centralElectrica->toArray();
             // Collect all measurements from multiple API calls
             $allRmu5MinutalJsonDataList = [];
+            $hasApiError = false;
             
             foreach ($dateRanges as $range) {
                 $formatedRRMU = str_replace(' ', '', $centralElectrica->rmu);
                 $formatedRRMU = str_replace('-', '', $formatedRRMU);
-                $rmu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
-                    $formatedRRMU,
-                    $range['start'],
-                    $range['end'],
-                    $centralElectrica->tokenMediMEM,
-                    $sendEmail,
-                );
+                
+                try {
+                    $rmu5MinutalJsonDataList = $this->mediMEMService->getRPUMeasurements(
+                        $formatedRRMU,
+                        $range['start'],
+                        $range['end'],
+                        $centralElectrica->tokenMediMEM,
+                        $sendEmail,
+                    );
+                } catch (Throwable $apiEx) {
+                    $this->sendGoogleChatNotification(
+                        "Falla HTTP/API en petición CFE",
+                        $apiEx->getMessage(),
+                        $centralElectrica->rmu
+                    );
+                    $hasApiError = true;
+                    break;
+                }
 
                 if (null === $rmu5MinutalJsonDataList) {
+                    $this->sendGoogleChatNotification(
+                        "Respuesta nula o 401 Unauthorized de API CFE",
+                        "La API devolvió NULL para el rango {$range['start']} a {$range['end']}.",
+                        $centralElectrica->rmu
+                    );
+                    $hasApiError = true;
                     $sendEmail = false;
-                    continue;
+                    break;
                 }
 
                 // Merge the results
                 $allRmu5MinutalJsonDataList = array_merge($allRmu5MinutalJsonDataList, $rmu5MinutalJsonDataList);
+            }
+
+            if ($hasApiError || empty($allRmu5MinutalJsonDataList)) {
+                continue;
             }
 
             // Second step: Fill up missing data
@@ -285,8 +342,15 @@ class MediMEMRepo
             }
             if (!empty($rowsToInsertCE)) {
                 try {
-                    $this->measurementsRepo->bulkUpsertCEMeasurements($rowsToInsertCE);
-                } catch (Exception $e) {
+                    $count = $this->measurementsRepo->bulkUpsertCEMeasurements($rowsToInsertCE);
+                    $totalRecordsSynced += $count;
+                    $processedMeters++;
+                } catch (Throwable $e) {
+                    $this->sendGoogleChatNotification(
+                        "Excepción en BD al realizar Bulk Upsert (CE)",
+                        $e->getMessage(),
+                        $centralElectrica->rmu
+                    );
                     Log::channel('task_errors')->error($e);
                 }
             }
@@ -338,8 +402,14 @@ class MediMEMRepo
                 }
                 if (!empty($rowsToInsertCC)) {
                     try {
-                        $this->measurementsRepo->bulkUpsertCCMeasurements($rowsToInsertCC);
-                    } catch (Exception $e) {
+                        $count = $this->measurementsRepo->bulkUpsertCCMeasurements($rowsToInsertCC);
+                        $totalRecordsSynced += $count;
+                    } catch (Throwable $e) {
+                        $this->sendGoogleChatNotification(
+                            "Excepción en BD al realizar Bulk Upsert (CC Asociado)",
+                            $e->getMessage(),
+                            $centroDeCarga->rpu
+                        );
                         Log::channel('task_errors')->error($e);
                     }
                 }
@@ -493,7 +563,12 @@ class MediMEMRepo
             if (!empty($rowsToInsertCC)) {
                 try {
                     $this->measurementsRepo->bulkUpsertCCMeasurements($rowsToInsertCC);
-                } catch (Exception $e) {
+                } catch (Throwable $e) {
+                    $this->sendGoogleChatNotification(
+                        "Excepción en BD al realizar Bulk Upsert (CC Principal)",
+                        $e->getMessage(),
+                        $centroDeCarga->rpu
+                    );
                     Log::channel('task_errors')->error($e);
                 }
             }
@@ -544,12 +619,29 @@ class MediMEMRepo
                 }
                 if (!empty($rowsToInsertCE)) {
                     try {
-                        $this->measurementsRepo->bulkUpsertCEMeasurements($rowsToInsertCE);
-                    } catch (Exception $e) {
+                        $count = $this->measurementsRepo->bulkUpsertCEMeasurements($rowsToInsertCE);
+                        $totalRecordsSynced += $count;
+                    } catch (Throwable $e) {
+                        $this->sendGoogleChatNotification(
+                            "Excepción en BD al realizar Bulk Upsert (CE Asociada)",
+                            $e->getMessage(),
+                            $centralElectrica->name
+                        );
                         Log::channel('task_errors')->error($e);
                     }
                 }
             }
+        }
+        
+        Log::info("INFO [MediMEMRepo]: Proceso de sincronización finalizado exitosamente. Medidores procesados: {$processedMeters}. Total registros upserted: {$totalRecordsSynced}.");
+
+        } catch (Throwable $globalEx) {
+            $this->sendGoogleChatNotification(
+                "Falla Crítica Global en syncronizeMeasurements",
+                $globalEx->getMessage() . " en línea " . $globalEx->getLine(),
+                "GLOBAL"
+            );
+            Log::channel('task_errors')->error("ERROR CRÍTICO [MediMEMRepo]: " . $globalEx->getMessage());
         }
     }
 }
