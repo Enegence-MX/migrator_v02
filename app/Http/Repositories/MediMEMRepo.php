@@ -295,6 +295,7 @@ class MediMEMRepo
                         "TeamID: {$entidad->teamId} | Medidor rechazado tras 2 vueltas completas de sincronización.",
                         $rpuOrRmu
                     );
+                    usleep(1500000);
                 }
             }
             Log::info("INFO [MediMEMRepo]: Proceso de sincronización finalizado exitosamente. Medidores procesados: {$processedMeters}. Total registros upserted: {$totalRecordsSynced}.");
