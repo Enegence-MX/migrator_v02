@@ -184,7 +184,7 @@ class MediMEMRepo
             }
             
             $centrosDeCarga = $this->roundRobinByTeamId($centrosDeCargaQuery->get());
-            $sendEmail = true;
+            $sendEmail = false;
             $centrosDeCargaSavedById = array();
             $centralesElectricaSavedById = array();
             

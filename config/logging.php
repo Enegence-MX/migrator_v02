@@ -48,6 +48,12 @@ return [
     */
 
     'channels' => [
+        'task_errors' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/task_errors.log'),
+            'level' => 'error',
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => ['single'],
