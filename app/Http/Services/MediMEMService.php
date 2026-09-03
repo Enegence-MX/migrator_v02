@@ -95,12 +95,10 @@ class MediMEMService extends BaseHTTPService
             }
             return $this->processResponse($response, $endpoint);
         } catch (Exception $e) {
-            Log::channel('task_errors')->error($e);
-            $this->sendError(
-                $e->getMessage(),
-                $endpoint,
-                $sendErrorEmail
-            );
+            // No enviar correo
+            // $this->sendError($e->getMessage(), $endpoint, $sendErrorEmail);
+
+            Log::channel('task_errors')->error("Error HTTP MediMEM API [{$e->getCode()}]: " . $e->getMessage());
             return null;
         }
     }
