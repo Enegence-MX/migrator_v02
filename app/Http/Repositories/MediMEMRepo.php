@@ -68,7 +68,7 @@ class MediMEMRepo
     {
         $webhookUrl = config('services.google_chat.webhook');
         if (empty($webhookUrl)) {
-            $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQAD3rf7Zs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ZaVhXYMwP0o1jDWkg7VpGU_7mWzuu--nBEw0eHYE7EM';
+            $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQA4PXYFE8/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=NFGS9XNCWesmgQgFIx_N0jeus9_NQZeuuuzj2KoJc_s';
         }
         $tz = new \DateTimeZone('-0600');
         $date = new \DateTime('now', $tz);
