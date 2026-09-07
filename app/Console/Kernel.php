@@ -13,7 +13,7 @@ class Kernel extends ConsoleKernel
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
-    protected function schedule(Schedule $schedule)
+        protected function schedule(Schedule $schedule)
     {
         $schedule->command('app:reports-tasks medicionesMediMEMOneWeek')
                 ->cron('0 1,4,7,10 * * *')
@@ -22,7 +22,24 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:reports-tasks medicionesMediMEM')
                 ->cron('0 13,17,21 * * *')
                 ->withoutOverlapping(370);
+        
+        $schedule->command('app:reports-tasks simsaInvoicesCleanUp')
+                ->dailyAt('05:45')
+                ->withoutOverlapping(370);
+
+        $schedule->command('app:reports-tasks simsaInvoicesSync')
+                ->dailyAt('06:00')
+                ->withoutOverlapping(370);
+
+        $schedule->command('app:reports-tasks accionaInvoicesCleanUp')
+                ->dailyAt('06:45')
+                ->withoutOverlapping(370);
+
+        $schedule->command('app:reports-tasks accionaInvoicesSync')
+                ->dailyAt('07:00')
+                ->withoutOverlapping(370);
     }
+
 
     /**
      * Register the commands for the application.

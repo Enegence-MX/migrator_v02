@@ -7,6 +7,8 @@ use App\Http\Repositories\MeasurementsRepo;
 use App\Http\Repositories\MediMEMRepo;
 use App\Http\Services\MediMEMService;
 use Illuminate\Console\Command;
+use App\Http\Repositories\SimsaInvoiceRepository;
+use App\Http\Repositories\AccionaInvoiceRepository;
 
 class SmartReportsTasks extends Command
 {
@@ -59,6 +61,26 @@ class SmartReportsTasks extends Command
                     $mediMEMRepo->syncronizeMeasurements();
                     break;
                 $this->info("El proceso $task ha finalizado correctamente.");
+
+                case 'simsaInvoicesSync':
+                    $simsaInvoiceRepo = new SimsaInvoiceRepository();
+                    $simsaInvoiceRepo->synchronizeInvoices();
+                    break;
+
+                case 'simsaInvoicesCleanUp':
+                    $simsaInvoiceRepo = new SimsaInvoiceRepository();
+                    $simsaInvoiceRepo->removeOldInvoices();
+                    break;
+
+                case 'accionaInvoicesSync':
+                    $accionaInvoiceRepo = new AccionaInvoiceRepository();
+                    $accionaInvoiceRepo->synchronizeInvoices();
+                    break;
+                
+                case 'accionaInvoicesCleanUp':
+                    $accionaInvoiceRepo = new AccionaInvoiceRepository();
+                    $accionaInvoiceRepo->removeOldInvoices();
+                    break;
             }
         } catch (\Throwable $th) {
             error_log(
