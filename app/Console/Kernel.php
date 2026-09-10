@@ -38,9 +38,13 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:reports-tasks accionaInvoicesSync')
                 ->dailyAt('07:00')
                 ->withoutOverlapping(370);
+
+        $schedule->command('sync:measurements')->daily();
+        $schedule->command('sync:general-data')->daily();
+        $schedule->command('sync:catalog-data')->daily();
+        $schedule->command('sync:cloud-catalog-data')->daily();
+        $schedule->command('sync:liquidaciones-ecd')->daily();
     }
-
-
     /**
      * Register the commands for the application.
      *
