@@ -18,7 +18,7 @@ class SimsaInvoiceRepository
     protected $companyName = 'SIMSA';
     protected $logger;
     protected $loggerFileName = 'simsa_invoice_sync';
-    protected $storePeriodOnMonths = 2;
+    protected $storePeriodOnMonths = 3;
     protected $invoceSCTableName = 'simsa_sc_invoices';
     protected $invoceMEMTableName = 'simsa_mem_invoices';
 
