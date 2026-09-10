@@ -20,91 +20,118 @@ class SyncGeneralData extends Command
 
     public function handle()
     {
-        if (!$this->setupDevConnection()) {
-            $this->error("No se pudo configurar la conexión de origen (mysql_dev) a la base de datos 'enegence_dev'.");
-            return Command::FAILURE;
-        }
-
-        $isHistorical = $this->option('historical');
-        $customDays = $this->option('days') ? (int) $this->option('days') : null;
-        $cleanupDays = (int) $this->option('cleanup-days');
-
-        $limiteFecha = Carbon::now()->subDays($cleanupDays)->toDateString();
-
-        if ($isHistorical || $customDays !== null) {
-            $hDays = $customDays !== null ? $customDays : 100;
-            $desde3d = Carbon::now()->subDays($hDays)->toDateString();
-            $desde5d = $desde3d;
-            $desde7d = $desde3d;
-        } else {
-            $desde3d = Carbon::now()->subDays(3)->toDateString();
-            $desde5d = Carbon::now()->subDays(5)->toDateString();
-            $desde7d = Carbon::now()->subDays(7)->toDateString();
-        }
-
-        $team = $this->argument('team');
-
-        if ($team) {
-            $this->info("Iniciando sincronización de datos generales para el equipo específico: $team...");
-            $cacheKey = "sync_running:sync:general-data:{$team}";
-            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 3600);
-            try {
-                if ($this->setupDynamicConnection($team)) {
-                    $this->info("Conectado a la BD del equipo $team.");
-                    $this->executeSyncForTeam($team, $desde3d, $desde5d, $desde7d, $limiteFecha);
-                } else {
-                    $this->error("No se pudo configurar la conexión para el equipo $team (¿Existe en team_databases y está activo?).");
-                    return Command::FAILURE;
-                }
-            } finally {
-                \Illuminate\Support\Facades\Cache::forget($cacheKey);
-            }
-        } else {
-            $this->info("Iniciando sincronización de datos generales en bucle para todos los equipos configurados...");
-            $this->info("Rango 3 días: $desde3d | 5 días: $desde5d | 7 días: $desde7d | Limpieza: $limiteFecha");
-            $activeTeams = \App\Models\Team::where('active', true)->where('sync_general_data', true)->get();
-
-            if ($activeTeams->isEmpty()) {
-                $this->info("No hay equipos activos con la sincronización general automática habilitada.");
-                return Command::SUCCESS;
+        try {
+            if (!$this->setupDevConnection()) {
+                $this->error("No se pudo configurar la conexión de origen (mysql_dev) a la base de datos 'enegence_dev'.");
+                return Command::FAILURE;
             }
 
-            $processedDbs = [];
-            foreach ($activeTeams as $t) {
-                $teamId = $t->team_id;
-                $teamConfig = DB::connection('mysql')->table('team_databases')->where('team_id', $teamId)->where('active', 1)->first();
-                if (!$teamConfig) {
-                    $this->warn("No se encontró base de datos activa para el equipo $teamId. Saltando...");
-                    continue;
-                }
+            $isHistorical = $this->option('historical');
+            $customDays = $this->option('days') ? (int) $this->option('days') : null;
+            $cleanupDays = (int) $this->option('cleanup-days');
 
-                $dbName = $teamConfig->database_name;
-                if (in_array($dbName, $processedDbs)) {
-                    $this->info("La base de datos '$dbName' ya fue sincronizada en esta corrida (Equipo: $teamId). Saltando redundancia...");
-                    continue;
-                }
+            $limiteFecha = Carbon::now()->subDays($cleanupDays)->toDateString();
 
-                $this->info("-------------------------------------------------------------");
-                $this->info("Sincronizando equipo: $teamId (BD: $dbName)...");
+            if ($isHistorical || $customDays !== null) {
+                $hDays = $customDays !== null ? $customDays : 100;
+                $desde3d = Carbon::now()->subDays($hDays)->toDateString();
+                $desde5d = $desde3d;
+                $desde7d = $desde3d;
+            } else {
+                $desde3d = Carbon::now()->subDays(3)->toDateString();
+                $desde5d = Carbon::now()->subDays(5)->toDateString();
+                $desde7d = Carbon::now()->subDays(7)->toDateString();
+            }
 
-                $cacheKey = "sync_running:sync:general-data:{$teamId}";
+            $team = $this->argument('team');
+
+            if ($team) {
+                $this->info("Iniciando sincronización de datos generales para el equipo específico: $team...");
+                $cacheKey = "sync_running:sync:general-data:{$team}";
                 \Illuminate\Support\Facades\Cache::put($cacheKey, true, 3600);
                 try {
-                    if ($this->setupDynamicConnection($teamId)) {
-                        $this->executeSyncForTeam($teamId, $desde3d, $desde5d, $desde7d, $limiteFecha);
-                        $processedDbs[] = $dbName;
+                    if ($this->setupDynamicConnection($team)) {
+                        $this->info("Conectado a la BD del equipo $team.");
+                        $this->executeSyncForTeam($team, $desde3d, $desde5d, $desde7d, $limiteFecha);
                     } else {
-                        $this->error("No se pudo configurar la conexión para el equipo $teamId.");
+                        $this->error("No se pudo configurar la conexión para el equipo $team (¿Existe en team_databases y está activo?).");
+                        return Command::FAILURE;
                     }
                 } finally {
                     \Illuminate\Support\Facades\Cache::forget($cacheKey);
                 }
-            }
-        }
+            } else {
+                $this->info("Iniciando sincronización de datos generales en bucle para todos los equipos configurados...");
+                $this->info("Rango 3 días: $desde3d | 5 días: $desde5d | 7 días: $desde7d | Limpieza: $limiteFecha");
+                $activeTeams = \App\Models\Team::where('active', true)->where('sync_general_data', true)->get();
 
-        $this->info("-------------------------------------------------------------");
-        $this->info('Sincronización de datos generales finalizada correctamente.');
-        return Command::SUCCESS;
+                if ($activeTeams->isEmpty()) {
+                    $this->info("No hay equipos activos con la sincronización general automática habilitada.");
+                    return Command::SUCCESS;
+                }
+
+                $processedDbs = [];
+                foreach ($activeTeams as $t) {
+                    $teamId = $t->team_id;
+                    $teamConfig = DB::connection('mysql')->table('team_databases')->where('team_id', $teamId)->where('active', 1)->first();
+                    if (!$teamConfig) {
+                        $this->warn("No se encontró base de datos activa para el equipo $teamId. Saltando...");
+                        continue;
+                    }
+
+                    $dbName = $teamConfig->database_name;
+                    if (in_array($dbName, $processedDbs)) {
+                        $this->info("La base de datos '$dbName' ya fue sincronizada en esta corrida (Equipo: $teamId). Saltando redundancia...");
+                        continue;
+                    }
+
+                    $this->info("-------------------------------------------------------------");
+                    $this->info("Sincronizando equipo: $teamId (BD: $dbName)...");
+
+                    $cacheKey = "sync_running:sync:general-data:{$teamId}";
+                    \Illuminate\Support\Facades\Cache::put($cacheKey, true, 3600);
+                    try {
+                        if ($this->setupDynamicConnection($teamId)) {
+                            $this->executeSyncForTeam($teamId, $desde3d, $desde5d, $desde7d, $limiteFecha);
+                            $processedDbs[] = $dbName;
+                        } else {
+                            $this->error("No se pudo configurar la conexión para el equipo $teamId.");
+                        }
+                    } finally {
+                        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                    }
+                }
+            }
+
+            $this->info("-------------------------------------------------------------");
+            $this->info('Sincronización de datos generales finalizada correctamente.');
+            return Command::SUCCESS;
+        } catch (\Throwable $th) {
+            error_log(
+                date("[Y-m-d H:i:s]") . " " . $th . PHP_EOL,
+                3,
+                storage_path('logs/TaskErrors.log')
+            );
+            try {
+                $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQA4PXYFE8/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=NFGS9XNCWesmgQgFIx_N0jeus9_NQZeuuuzj2KoJc_s';
+                $tz = new \DateTimeZone('-0600');
+                $fecha = (new \DateTime('now', $tz))->format('Y-m-d H:i:s');
+                $payload = json_encode([
+                    'text' => "🚨 *ERROR FATAL EN COMANDO (Sync)*\n*Comando:* `sync:general-data`\n*Error:* " . $th->getMessage() . "\n*Archivo:* " . basename($th->getFile()) . " línea " . $th->getLine() . "\n*Fecha:* " . $fecha
+                ]);
+                $ch = curl_init($webhookUrl);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_exec($ch);
+                curl_close($ch);
+            } catch (\Throwable $e) {
+                // Ignore webhook errors
+            }
+            throw $th;
+        }
     }
 
     private function executeSyncForTeam($team, $desde3d, $desde5d, $desde7d, $limiteFecha)
