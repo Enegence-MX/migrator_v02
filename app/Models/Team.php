@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Team extends Model
 {
-    protected $connection = 'central';
+    protected $connection = 'mysql';
 
     protected $fillable = [
         'team_id',

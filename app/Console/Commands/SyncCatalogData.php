@@ -27,63 +27,90 @@ class SyncCatalogData extends Command
      */
     public function handle()
     {
-        $days = $this->option('historical') ? 100 : 3;
-        if ($this->option('days')) {
-            $days = (int) $this->option('days');
-        }
-        $cleanupDays = (int) $this->option('cleanup-days');
-
-        $desdeFecha = Carbon::now()->subDays($days)->toDateString();
-        $limiteFecha = Carbon::now()->subDays($cleanupDays)->toDateString();
-
-        $team = $this->argument('team');
-
-        if ($team) {
-            $this->info("Iniciando sincronización de catálogos para el equipo específico: $team. Sincronizando desde: $desdeFecha (días: $days). Limpiando registros anteriores a: $limiteFecha (días de retención: $cleanupDays)...");
-            $cacheKey = "sync_running:sync:catalog-data:{$team}";
-            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 3600);
-            try {
-                if ($this->setupDynamicConnection($team)) {
-                    $this->info("Conectado a la BD del equipo $team.");
-                    $this->executeSyncForTeam($team, $desdeFecha, $limiteFecha);
-                } else {
-                    $this->error("No se pudo configurar la conexión para el equipo $team (¿Existe en team_databases y está activo?).");
-                    return Command::FAILURE;
-                }
-            } finally {
-                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+        try {
+            $days = $this->option('historical') ? 100 : 3;
+            if ($this->option('days')) {
+                $days = (int) $this->option('days');
             }
-        } else {
-            $this->info("Iniciando sincronización de catálogos en bucle para todos los equipos configurados...");
-            $this->info("Rango de sincronización: $desdeFecha (días: $days). Límite de limpieza: $limiteFecha (días: $cleanupDays)");
-            $activeTeams = \App\Models\Team::where('active', true)->where('sync_catalog_data', true)->get();
+            $cleanupDays = (int) $this->option('cleanup-days');
 
-            if ($activeTeams->isEmpty()) {
-                $this->info("No hay equipos activos con la sincronización de catálogos automática habilitada.");
-                return Command::SUCCESS;
-            }
+            $desdeFecha = Carbon::now()->subDays($days)->toDateString();
+            $limiteFecha = Carbon::now()->subDays($cleanupDays)->toDateString();
 
-            foreach ($activeTeams as $t) {
-                $teamId = $t->team_id;
-                $this->info("-------------------------------------------------------------");
-                $this->info("Sincronizando catálogos para equipo: $teamId...");
+            $team = $this->argument('team');
 
-                $cacheKey = "sync_running:sync:catalog-data:{$teamId}";
+            if ($team) {
+                $this->info("Iniciando sincronización de catálogos para el equipo específico: $team. Sincronizando desde: $desdeFecha (días: $days). Limpiando registros anteriores a: $limiteFecha (días de retención: $cleanupDays)...");
+                $cacheKey = "sync_running:sync:catalog-data:{$team}";
                 \Illuminate\Support\Facades\Cache::put($cacheKey, true, 3600);
                 try {
-                    if ($this->setupDynamicConnection($teamId)) {
-                        $this->executeSyncForTeam($teamId, $desdeFecha, $limiteFecha);
+                    if ($this->setupDynamicConnection($team)) {
+                        $this->info("Conectado a la BD del equipo $team.");
+                        $this->executeSyncForTeam($team, $desdeFecha, $limiteFecha);
                     } else {
-                        $this->error("No se pudo configurar la conexión para el equipo $teamId.");
+                        $this->error("No se pudo configurar la conexión para el equipo $team (¿Existe en team_databases y está activo?).");
+                        return Command::FAILURE;
                     }
                 } finally {
                     \Illuminate\Support\Facades\Cache::forget($cacheKey);
                 }
-            }
-        }
+            } else {
+                $this->info("Iniciando sincronización de catálogos en bucle para todos los equipos configurados...");
+                $this->info("Rango de sincronización: $desdeFecha (días: $days). Límite de limpieza: $limiteFecha (días: $cleanupDays)");
+                $activeTeams = \App\Models\Team::where('active', true)->where('sync_catalog_data', true)->get();
 
-        $this->info('Sincronización finalizada correctamente.');
-        return Command::SUCCESS;
+                if ($activeTeams->isEmpty()) {
+                    $this->info("No hay equipos activos con la sincronización de catálogos automática habilitada.");
+                    return Command::SUCCESS;
+                }
+
+                foreach ($activeTeams as $t) {
+                    $teamId = $t->team_id;
+                    $this->info("-------------------------------------------------------------");
+                    $this->info("Sincronizando catálogos para equipo: $teamId...");
+
+                    $cacheKey = "sync_running:sync:catalog-data:{$teamId}";
+                    \Illuminate\Support\Facades\Cache::put($cacheKey, true, 3600);
+                    try {
+                        if ($this->setupDynamicConnection($teamId)) {
+                            $this->executeSyncForTeam($teamId, $desdeFecha, $limiteFecha);
+                        } else {
+                            $this->error("No se pudo configurar la conexión para el equipo $teamId.");
+                        }
+                    } finally {
+                        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                    }
+                }
+            }
+
+            $this->info('Sincronización finalizada correctamente.');
+            return Command::SUCCESS;
+        } catch (\Throwable $th) {
+            error_log(
+                date("[Y-m-d H:i:s]") . " " . $th . PHP_EOL,
+                3,
+                storage_path('logs/TaskErrors.log')
+            );
+            try {
+                $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQA4PXYFE8/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=NFGS9XNCWesmgQgFIx_N0jeus9_NQZeuuuzj2KoJc_s';
+                $tz = new \DateTimeZone('-0600');
+                $fecha = (new \DateTime('now', $tz))->format('Y-m-d H:i:s');
+                $payload = json_encode([
+                    'text' => "🚨 *ERROR FATAL EN COMANDO (Sync)*\n*Comando:* `sync:catalog-data`\n*Error:* " . $th->getMessage() . "\n*Archivo:* " . basename($th->getFile()) . " línea " . $th->getLine() . "\n*Fecha:* " . $fecha
+                ]);
+                $ch = curl_init($webhookUrl);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_exec($ch);
+                curl_close($ch);
+            } catch (\Throwable $e) {
+                // Ignore webhook errors
+            }
+            throw $th; // Optionally rethrow so artisan command fails correctly
+        }
     }
 
     private function executeSyncForTeam($team, $desdeFecha, $limiteFecha)
