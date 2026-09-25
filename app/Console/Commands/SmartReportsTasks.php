@@ -9,6 +9,7 @@ use App\Http\Services\MediMEMService;
 use Illuminate\Console\Command;
 use App\Http\Repositories\SimsaInvoiceRepository;
 use App\Http\Repositories\AccionaInvoiceRepository;
+use App\Http\Repositories\KualionCalculationRepository;
 
 class SmartReportsTasks extends Command
 {
@@ -80,6 +81,16 @@ class SmartReportsTasks extends Command
                 case 'accionaInvoicesCleanUp':
                     $accionaInvoiceRepo = new AccionaInvoiceRepository();
                     $accionaInvoiceRepo->removeOldInvoices();
+                    break;
+
+                case 'ConceptsReport':
+                    $reportsController = new KualionCalculationRepository();
+                    $reportsController->getCalulationConceptsReport();
+                    break;
+                
+                case 'ComponentsReport':
+                    $reportsController = new KualionCalculationRepository();
+                    $reportsController->getCalulationComponentsReport();
                     break;
             }
         } catch (\Throwable $th) {
