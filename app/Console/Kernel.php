@@ -39,6 +39,14 @@ class Kernel extends ConsoleKernel
                 ->dailyAt('07:00')
                 ->withoutOverlapping(370);
 
+        $schedule->command('app:reports-tasks ConceptsReport')
+                ->cron('0 11,13,15 * * *')
+                ->withoutOverlapping(370);
+
+        $schedule->command('app:reports-tasks ComponentsReport')
+                ->cron('5 11,13,15 * * *')
+                ->withoutOverlapping(370);
+
         $schedule->command('sync:measurements')->daily();
         $schedule->command('sync:general-data')->daily();
         $schedule->command('sync:catalog-data')->daily();
