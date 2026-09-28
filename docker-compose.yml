@@ -1,0 +1,54 @@
+services:
+  migrator_v02_database:
+    image: mysql:8.0
+    container_name: migrator_v02_database
+    hostname: ${DB_HOST}
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+    ports:
+      - "127.0.0.1:33061:3306"
+    networks:
+      - network_local
+
+  migrator:
+    build:
+      context: .
+      args:
+        uid: 8983
+    container_name: migrator_v02
+    depends_on:
+      - migrator_v02_database
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_KEY: ${APP_KEY:-}
+      APP_DEBUG: ${APP_DEBUG}
+      APP_URL: ${APP_URL}
+      LOG_CHANNEL: ${LOG_CHANNEL}
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SESSION_DRIVER: ${SESSION_DRIVER}
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION}
+      KUALION_DB_USERNAME: ${KUALION_DB_USERNAME}
+      KUALION_DB_PASSWORD: ${KUALION_DB_PASSWORD}
+      KUALION_DB_HOST: ${KUALION_DB_HOST}
+      KUALION_DB_PORT: ${KUALION_DB_PORT}
+      KUALION_DB_SERVICE_NAME: ${KUALION_DB_SERVICE_NAME}
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/var/www/html
+    ports:
+      - 8006:80
+    networks:
+      - network_local
+
+networks:
+  network_local:
+    driver: bridge
