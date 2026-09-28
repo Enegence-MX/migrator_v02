@@ -1,0 +1,60 @@
+name: Code Standards
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - master
+      - development
+      - branchQA
+
+jobs:
+  code-standards:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.2']
+
+    name: PHP ${{ matrix.php-version }} Code Standards
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mbstring, dom, fileinfo, pdo, pdo_mysql, oci8
+          coverage: none
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php-version }}-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
+
+      - name: Make code_sniffer.sh executable
+        run: chmod +x code_sniffer.sh
+
+      - name: Run Code Standards Check
+        run: bash code_sniffer.sh
+
+      - name: Upload code standards report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-standards-report
+          path: |
+            storage/logs
