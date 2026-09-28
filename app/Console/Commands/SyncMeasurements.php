@@ -152,8 +152,9 @@ class SyncMeasurements extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('medicionesHorariasCC')->upsert($data, 
-                        ['rpu', 'fecha', 'hora'], 
+                    DB::connection('tenant')->table('medicionesHorariasCC')->upsert(
+                        $data,
+                        ['rpu', 'fecha', 'hora'],
                         ['rmu', 'energia', 'energiaOriginal', 'tipo', 'tipoOriginal', 'bloqueBIP', 'created_at']
                     );
                 }
@@ -190,8 +191,9 @@ class SyncMeasurements extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('medicionesHorariasCE')->upsert($data, 
-                        ['nombre', 'unidad', 'fecha', 'hora'], 
+                    DB::connection('tenant')->table('medicionesHorariasCE')->upsert(
+                        $data,
+                        ['nombre', 'unidad', 'fecha', 'hora'],
                         ['rmu', 'claveNodo', 'energia', 'bloqueBIP', 'energiaOriginal', 'tipo', 'tipoOriginal', 'created_at']
                     );
                 }

@@ -13,39 +13,39 @@ class Kernel extends ConsoleKernel
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
-        protected function schedule(Schedule $schedule)
+    protected function schedule(Schedule $schedule)
     {
         $schedule->command('app:reports-tasks medicionesMediMEMOneWeek')
-                ->cron('0 1,4,7,10 * * *')
-                ->withoutOverlapping(370);
+            ->cron('0 1,4,7,10 * * *')
+            ->withoutOverlapping(370);
 
         $schedule->command('app:reports-tasks medicionesMediMEM')
-                ->cron('0 13,17,21 * * *')
-                ->withoutOverlapping(370);
+            ->cron('0 13,17,21 * * *')
+            ->withoutOverlapping(370);
         
         $schedule->command('app:reports-tasks simsaInvoicesCleanUp')
-                ->dailyAt('05:45')
-                ->withoutOverlapping(370);
+            ->dailyAt('05:45')
+            ->withoutOverlapping(370);
 
         $schedule->command('app:reports-tasks simsaInvoicesSync')
-                ->dailyAt('06:00')
-                ->withoutOverlapping(370);
+            ->dailyAt('06:00')
+            ->withoutOverlapping(370);
 
         $schedule->command('app:reports-tasks accionaInvoicesCleanUp')
-                ->dailyAt('06:45')
-                ->withoutOverlapping(370);
+            ->dailyAt('06:45')
+            ->withoutOverlapping(370);
 
         $schedule->command('app:reports-tasks accionaInvoicesSync')
-                ->dailyAt('07:00')
-                ->withoutOverlapping(370);
+            ->dailyAt('07:00')
+            ->withoutOverlapping(370);
 
         $schedule->command('app:reports-tasks ConceptsReport')
-                ->cron('0 11,13,15 * * *')
-                ->withoutOverlapping(370);
+            ->cron('0 11,13,15 * * *')
+            ->withoutOverlapping(370);
 
         $schedule->command('app:reports-tasks ComponentsReport')
-                ->cron('5 11,13,15 * * *')
-                ->withoutOverlapping(370);
+            ->cron('5 11,13,15 * * *')
+            ->withoutOverlapping(370);
 
         $schedule->command('sync:measurements')->daily();
         $schedule->command('sync:general-data')->daily();
@@ -53,6 +53,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('sync:cloud-catalog-data')->daily();
         $schedule->command('sync:liquidaciones-ecd')->daily();
     }
+
     /**
      * Register the commands for the application.
      *

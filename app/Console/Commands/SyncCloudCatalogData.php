@@ -161,7 +161,7 @@ class SyncCloudCatalogData extends Command
                     return [
                         'id' => $record->id,
                         'teamId' => $record->teamId,
-                        'shortname' => null, 
+                        'shortname' => null,
                         'alias' => $record->alias,
                         'name' => $record->name,
                         'rfc' => $record->rfc,
@@ -170,7 +170,7 @@ class SyncCloudCatalogData extends Command
                         'contractNumberId' => $record->contractNumberId,
                         'nameOptional' => $record->nameOptional,
                         'lastName' => $record->lastName,
-                        'email' => $record->email ? substr($record->email, 0, 100) : null, 
+                        'email' => $record->email ? substr($record->email, 0, 100) : null,
                         'phone' => $record->phone,
                         'street' => $record->street,
                         'externalNumber' => $record->externalNumber,
@@ -196,7 +196,9 @@ class SyncCloudCatalogData extends Command
 
                 if (!empty($data)) {
                     $keysToUpdate = array_keys(current($data));
-                    $keysToUpdate = array_filter($keysToUpdate, function($k) { return $k !== 'id'; });
+                    $keysToUpdate = array_filter($keysToUpdate, function ($k) {
+                        return $k !== 'id';
+                    });
 
                     DB::connection('tenant')->table('contrapartes')->upsert($data, ['id'], array_values($keysToUpdate));
                 }
@@ -288,7 +290,9 @@ class SyncCloudCatalogData extends Command
 
                 if (!empty($data)) {
                     $keysToUpdate = array_keys(current($data));
-                    $keysToUpdate = array_filter($keysToUpdate, function($k) { return $k !== 'id'; });
+                    $keysToUpdate = array_filter($keysToUpdate, function ($k) {
+                        return $k !== 'id';
+                    });
 
                     DB::connection('tenant')->table('listadoContratos')->upsert($data, ['id'], array_values($keysToUpdate));
                 }

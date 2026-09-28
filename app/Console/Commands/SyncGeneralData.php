@@ -616,11 +616,12 @@ class SyncGeneralData extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('conceptosDeCalculoDeContrato')->upsert($data, 
-                        ['contrato', 'idDeCalculo', 'fechaInicio', 'fechaFin', 'CategoriaOSeccion', 'componentId'], 
+                    DB::connection('tenant')->table('conceptosDeCalculoDeContrato')->upsert(
+                        $data,
+                        ['contrato', 'idDeCalculo', 'fechaInicio', 'fechaFin', 'CategoriaOSeccion', 'componentId'],
                         [
-                            'centrosDeCarga', 'centralesElectricas', 'NombreDelCalculo', 'InstrumentoOProducto', 
-                            'componentType', 'UnidadComponente', 'Cantidad', 'Precio', 'UnidadFact', 'Monto', 
+                            'centrosDeCarga', 'centralesElectricas', 'NombreDelCalculo', 'InstrumentoOProducto',
+                            'componentType', 'UnidadComponente', 'Cantidad', 'Precio', 'UnidadFact', 'Monto',
                             'Divisa', 'IVA', 'created_at', 'updated_at', 'report_created_at'
                         ]
                     );
@@ -667,10 +668,11 @@ class SyncGeneralData extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('variablesDeContrato')->upsert($data, 
-                        ['contrato', 'idDeCalculo', 'idDeVariable'], 
+                    DB::connection('tenant')->table('variablesDeContrato')->upsert(
+                        $data,
+                        ['contrato', 'idDeCalculo', 'idDeVariable'],
                         [
-                            'centrosDeCarga', 'centralesElectricas', 'nombreDeVariable', 'fechaInicio', 
+                            'centrosDeCarga', 'centralesElectricas', 'nombreDeVariable', 'fechaInicio',
                             'valor', 'unidades', 'created_at', 'updated_at', 'report_created_at'
                         ]
                     );
@@ -717,13 +719,14 @@ class SyncGeneralData extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('catalogosDeNodosP')->upsert($data, 
-                        ['Sistema', 'Clave', 'FechaDelArchivo'], 
+                    DB::connection('tenant')->table('catalogosDeNodosP')->upsert(
+                        $data,
+                        ['Sistema', 'Clave', 'FechaDelArchivo'],
                         [
-                            'CentroControlRegional', 'ZonaCarga', 'NombreNodo', 'NivelTension', 
-                            'TipoCargaDM', 'TipoCargaIM', 'TipoGeneracionDM', 'TipoGeneracionIM', 
-                            'ZonaOpeTrans', 'GerenciaRegTrans', 'ZonaDistribucion', 'GerenciaDivDist', 
-                            'ClaveEntidadInegi', 'EntidadInegi', 'ClaveMunicipio', 'Municipio', 
+                            'CentroControlRegional', 'ZonaCarga', 'NombreNodo', 'NivelTension',
+                            'TipoCargaDM', 'TipoCargaIM', 'TipoGeneracionDM', 'TipoGeneracionIM',
+                            'ZonaOpeTrans', 'GerenciaRegTrans', 'ZonaDistribucion', 'GerenciaDivDist',
+                            'ClaveEntidadInegi', 'EntidadInegi', 'ClaveMunicipio', 'Municipio',
                             'RegionTransmision', 'spanishDate', 'updatedAt'
                         ]
                     );
@@ -751,8 +754,9 @@ class SyncGeneralData extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('diccionarioFoliosLiquidacion')->upsert($data, 
-                        ['folio'], 
+                    DB::connection('tenant')->table('diccionarioFoliosLiquidacion')->upsert(
+                        $data,
+                        ['folio'],
                         [
                             'concepto', 'mercado', 'clasificacion', 'descripcion', 'grupo', 'tipo_PM'
                         ]
@@ -798,8 +802,9 @@ class SyncGeneralData extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('energiaAsignadaZonadeCarga')->upsert($data, 
-                        ['proceso', 'sistema', 'zonadeCarga', 'fecha', 'hora'], 
+                    DB::connection('tenant')->table('energiaAsignadaZonadeCarga')->upsert(
+                        $data,
+                        ['proceso', 'sistema', 'zonadeCarga', 'fecha', 'hora'],
                         ['formated_date', 'demandaMdoNodales', 'demandaPmlZonales', 'totalCargas']
                     );
                 }
