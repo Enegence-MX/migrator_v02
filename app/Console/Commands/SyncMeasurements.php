@@ -163,7 +163,14 @@ class SyncMeasurements extends Command
         };
 
         if ($desdeFecha === null) {
-            $this->syncHistoricalRows('measurements', 'date', $team, $processRecords, 'CC');
+            $this->syncHistoricalRows(
+                'measurements',
+                'date',
+                $team,
+                ['rpu', 'hour', 'createdAt', 'rmu', 'energy', 'ogKVARh', 'tipo', 'ogTipo', 'block', 'teamId'],
+                $processRecords,
+                'CC'
+            );
             return;
         }
 
@@ -209,7 +216,14 @@ class SyncMeasurements extends Command
         };
 
         if ($desdeFecha === null) {
-            $this->syncHistoricalRows('medicionesCentralElectrica', 'fecha', $team, $processRecords, 'CE');
+            $this->syncHistoricalRows(
+                'medicionesCentralElectrica',
+                'fecha',
+                $team,
+                ['nombre', 'unidad', 'hora', 'createdAt', 'rmu', 'claveNodo', 'energiakWh', 'blockCE', 'ogEnergy', 'tipo', 'ogTipo', 'teamId'],
+                $processRecords,
+                'CE'
+            );
             return;
         }
 
@@ -221,59 +235,43 @@ class SyncMeasurements extends Command
             ->chunk(1000, $processRecords);
     }
 
-    private function syncHistoricalRows($table, $dateColumn, $team, $processRecords, $label)
+    private function syncHistoricalRows($table, $dateColumn, $team, $orderColumns, $processRecords, $label)
     {
-        $primaryKeys = DB::connection('mysql_primary')->select(
-            "SHOW KEYS FROM `{$table}` WHERE Key_name = 'PRIMARY'"
-        );
+        $dates = DB::connection('mysql_primary')->table($table)
+            ->where('teamId', $team)
+            ->whereNotNull($dateColumn)
+            ->distinct()
+            ->orderBy($dateColumn)
+            ->pluck($dateColumn);
 
-        if (count($primaryKeys) !== 1) {
-            throw new \RuntimeException("La tabla {$table} debe tener una clave primaria de una sola columna para paginar el histórico de forma segura.");
-        }
-
-        $primaryKey = $primaryKeys[0]->Column_name;
-        $lastDate = null;
-        $lastId = null;
         $processed = 0;
+        $nextProgress = 100000;
+        $lastDate = null;
 
-        do {
+        foreach ($dates as $date) {
             $query = DB::connection('mysql_primary')->table($table)
                 ->where('teamId', $team)
-                ->whereNotNull($dateColumn);
+                ->where($dateColumn, '=', $date);
 
-            if ($lastDate !== null) {
-                $query->where(function ($query) use ($dateColumn, $primaryKey, $lastDate, $lastId) {
-                    $query->where($dateColumn, '>', $lastDate)
-                        ->orWhere(function ($query) use ($dateColumn, $primaryKey, $lastDate, $lastId) {
-                            $query->where($dateColumn, '=', $lastDate)
-                                ->where($primaryKey, '>', $lastId);
-                        });
-                });
+            foreach ($orderColumns as $column) {
+                $query->orderBy($column);
             }
 
-            $records = $query->orderBy($dateColumn)
-                ->orderBy($primaryKey)
-                ->limit(1000)
-                ->get();
+            $query->chunk(1000, function ($records) use ($processRecords, &$processed, &$nextProgress, &$lastDate, $date, $label) {
+                $processRecords($records);
+                $processed += $records->count();
+                $lastDate = $date;
 
-            if ($records->isEmpty()) {
-                break;
-            }
-
-            $processRecords($records);
-            $processed += $records->count();
-            $lastRecord = $records->last();
-            $lastDate = $lastRecord->{$dateColumn};
-            $lastId = $lastRecord->{$primaryKey};
-
-            if ($processed % 100000 === 0 || $records->count() < 1000) {
-                $this->info("{$label}: {$processed} registros procesados; última fecha: {$lastDate}.");
-            }
-        } while ($records->count() === 1000);
+                if ($processed >= $nextProgress) {
+                    $this->info("{$label}: {$processed} registros procesados; fecha actual: {$lastDate}.");
+                    $nextProgress += 100000;
+                }
+            });
+        }
 
         if ($processed === 0) {
             $this->info("{$label}: no se encontraron registros para el equipo {$team}.");
-        } elseif ($processed % 100000 === 0) {
+        } else {
             $this->info("{$label}: carga completa de {$processed} registros; última fecha: {$lastDate}.");
         }
     }
