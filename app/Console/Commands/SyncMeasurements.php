@@ -135,80 +135,147 @@ class SyncMeasurements extends Command
     {
         $this->info("Sincronizando CC para equipo $team...");
 
+        $processRecords = function ($records) {
+            $data = $records->map(function ($record) {
+                return [
+                    'rpu' => $record->rpu,
+                    'rmu' => $record->rmu,
+                    'fecha' => $record->date,
+                    'hora' => $record->hour,
+                    'energia' => $record->energy,
+                    'energiaOriginal' => $record->ogKVARh,
+                    'tipo' => $record->tipo,
+                    'tipoOriginal' => $record->ogTipo,
+                    'bloqueBIP' => $record->block,
+                    'team_id' => $record->teamId,
+                    'created_at' => $record->createdAt,
+                ];
+            })->unique(function ($item) {
+                return $item['rpu'].$item['fecha'].$item['hora'];
+            })->toArray();
+
+            if (!empty($data)) {
+                DB::connection('tenant')->table('medicionesHorariasCC')->upsert($data,
+                    ['rpu', 'fecha', 'hora'],
+                    ['rmu', 'energia', 'energiaOriginal', 'tipo', 'tipoOriginal', 'bloqueBIP', 'created_at']
+                );
+            }
+        };
+
+        if ($desdeFecha === null) {
+            $this->syncHistoricalRows('measurements', 'date', $team, $processRecords, 'CC');
+            return;
+        }
+
         $query = DB::connection('mysql_primary')->table('measurements')
             ->where('teamId', $team);
 
-        if ($desdeFecha !== null) {
-            $query->where('date', '>=', $desdeFecha);
-        }
-
-        $query->orderBy('createdAt', 'desc')->chunk(1000, function ($records) {
-                $data = $records->map(function ($record) {
-                    return [
-                        'rpu' => $record->rpu,
-                        'rmu' => $record->rmu,
-                        'fecha' => $record->date,
-                        'hora' => $record->hour,
-                        'energia' => $record->energy,
-                        'energiaOriginal' => $record->ogKVARh,
-                        'tipo' => $record->tipo,
-                        'tipoOriginal' => $record->ogTipo,
-                        'bloqueBIP' => $record->block,
-                        'team_id' => $record->teamId,
-                        'created_at' => $record->createdAt,
-                    ];
-                })->unique(function ($item) {
-                    return $item['rpu'].$item['fecha'].$item['hora'];
-                })->toArray();
-
-                if (!empty($data)) {
-                    DB::connection('tenant')->table('medicionesHorariasCC')->upsert($data,
-                        ['rpu', 'fecha', 'hora'],
-                        ['rmu', 'energia', 'energiaOriginal', 'tipo', 'tipoOriginal', 'bloqueBIP', 'created_at']
-                    );
-                }
-            });
+        $query->where('date', '>=', $desdeFecha)
+            ->orderBy('createdAt', 'desc')
+            ->chunk(1000, $processRecords);
     }
 
     protected function syncCE($desdeFecha, $team)
     {
         $this->info("Sincronizando CE para equipo $team...");
 
+        $processRecords = function ($records) {
+            $data = $records->map(function ($record) {
+                return [
+                    'nombre' => $record->nombre,
+                    'rmu' => $record->rmu,
+                    'unidad' => $record->unidad,
+                    'claveNodo' => $record->claveNodo,
+                    'fecha' => $record->fecha,
+                    'hora' => $record->hora,
+                    'energia' => $record->energiakWh,
+                    'bloqueBIP' => $record->blockCE,
+                    'energiaOriginal' => $record->ogEnergy,
+                    'tipo' => $record->tipo,
+                    'tipoOriginal' => $record->ogTipo,
+                    'team_id' => $record->teamId,
+                    'created_at' => $record->createdAt,
+                ];
+            })->unique(function ($item) {
+                return $item['nombre'].$item['unidad'].$item['fecha'].$item['hora'];
+            })->toArray();
+
+            if (!empty($data)) {
+                DB::connection('tenant')->table('medicionesHorariasCE')->upsert($data,
+                    ['nombre', 'unidad', 'fecha', 'hora'],
+                    ['rmu', 'claveNodo', 'energia', 'bloqueBIP', 'energiaOriginal', 'tipo', 'tipoOriginal', 'created_at']
+                );
+            }
+        };
+
+        if ($desdeFecha === null) {
+            $this->syncHistoricalRows('medicionesCentralElectrica', 'fecha', $team, $processRecords, 'CE');
+            return;
+        }
+
         $query = DB::connection('mysql_primary')->table('medicionesCentralElectrica')
             ->where('teamId', $team);
 
-        if ($desdeFecha !== null) {
-            $query->where('fecha', '>=', $desdeFecha);
+        $query->where('fecha', '>=', $desdeFecha)
+            ->orderBy('createdAt', 'desc')
+            ->chunk(1000, $processRecords);
+    }
+
+    private function syncHistoricalRows($table, $dateColumn, $team, $processRecords, $label)
+    {
+        $primaryKeys = DB::connection('mysql_primary')->select(
+            "SHOW KEYS FROM `{$table}` WHERE Key_name = 'PRIMARY'"
+        );
+
+        if (count($primaryKeys) !== 1) {
+            throw new \RuntimeException("La tabla {$table} debe tener una clave primaria de una sola columna para paginar el histórico de forma segura.");
         }
 
-        $query->orderBy('createdAt', 'desc')->chunk(1000, function ($records) {
-                $data = $records->map(function ($record) {
-                    return [
-                        'nombre' => $record->nombre,
-                        'rmu' => $record->rmu,
-                        'unidad' => $record->unidad,
-                        'claveNodo' => $record->claveNodo,
-                        'fecha' => $record->fecha,
-                        'hora' => $record->hora,
-                        'energia' => $record->energiakWh,
-                        'bloqueBIP' => $record->blockCE,
-                        'energiaOriginal' => $record->ogEnergy,
-                        'tipo' => $record->tipo,
-                        'tipoOriginal' => $record->ogTipo,
-                        'team_id' => $record->teamId,
-                        'created_at' => $record->createdAt,
-                    ];
-                })->unique(function ($item) {
-                    return $item['nombre'].$item['unidad'].$item['fecha'].$item['hora'];
-                })->toArray();
+        $primaryKey = $primaryKeys[0]->Column_name;
+        $lastDate = null;
+        $lastId = null;
+        $processed = 0;
 
-                if (!empty($data)) {
-                    DB::connection('tenant')->table('medicionesHorariasCE')->upsert($data,
-                        ['nombre', 'unidad', 'fecha', 'hora'],
-                        ['rmu', 'claveNodo', 'energia', 'bloqueBIP', 'energiaOriginal', 'tipo', 'tipoOriginal', 'created_at']
-                    );
-                }
-            });
+        do {
+            $query = DB::connection('mysql_primary')->table($table)
+                ->where('teamId', $team)
+                ->whereNotNull($dateColumn);
+
+            if ($lastDate !== null) {
+                $query->where(function ($query) use ($dateColumn, $primaryKey, $lastDate, $lastId) {
+                    $query->where($dateColumn, '>', $lastDate)
+                        ->orWhere(function ($query) use ($dateColumn, $primaryKey, $lastDate, $lastId) {
+                            $query->where($dateColumn, '=', $lastDate)
+                                ->where($primaryKey, '>', $lastId);
+                        });
+                });
+            }
+
+            $records = $query->orderBy($dateColumn)
+                ->orderBy($primaryKey)
+                ->limit(1000)
+                ->get();
+
+            if ($records->isEmpty()) {
+                break;
+            }
+
+            $processRecords($records);
+            $processed += $records->count();
+            $lastRecord = $records->last();
+            $lastDate = $lastRecord->{$dateColumn};
+            $lastId = $lastRecord->{$primaryKey};
+
+            if ($processed % 100000 === 0 || $records->count() < 1000) {
+                $this->info("{$label}: {$processed} registros procesados; última fecha: {$lastDate}.");
+            }
+        } while ($records->count() === 1000);
+
+        if ($processed === 0) {
+            $this->info("{$label}: no se encontraron registros para el equipo {$team}.");
+        } elseif ($processed % 100000 === 0) {
+            $this->info("{$label}: carga completa de {$processed} registros; última fecha: {$lastDate}.");
+        }
     }
 
     private function cleanupOldRecords($limiteFecha, $team)
