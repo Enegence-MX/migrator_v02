@@ -8,6 +8,8 @@ use Carbon\Carbon;
 
 class SyncMeasurements extends Command
 {
+    protected const TEAMS_WITH_PRESERVED_HISTORY = ['93', '339', '454'];
+
     protected $signature = 'sync:measurements {team?} {--historical} {--days=} {--cleanup-days=120}';
     protected $description = 'Sincroniza datos de mediciones CC y CE con mapeo correcto de columnas hacia BDs tenant';
     
@@ -103,10 +105,15 @@ class SyncMeasurements extends Command
     {
         $this->syncCC($desdeFecha, $team);
         $this->syncCE($desdeFecha, $team);
-        $this->cleanupOldRecords($limiteFecha, $team);
+
+        if (!in_array((string) $team, self::TEAMS_WITH_PRESERVED_HISTORY, true)) {
+            $this->cleanupOldRecords($limiteFecha, $team);
+        } else {
+            $this->info("Se omite la depuración automática para el equipo $team; se conserva su histórico.");
+        }
     }
 
-    private function setupDynamicConnection($teamId)
+    protected function setupDynamicConnection($teamId)
     {
         $teamConfig = DB::connection('mysql')->table('team_databases')->where('team_id', $teamId)->where('active', 1)->first();
 
@@ -124,15 +131,18 @@ class SyncMeasurements extends Command
         return true;
     }
 
-    private function syncCC($desdeFecha, $team)
+    protected function syncCC($desdeFecha, $team)
     {
         $this->info("Sincronizando CC para equipo $team...");
 
-        DB::connection('mysql_primary')->table('measurements')
-            ->where('teamId', $team)
-            ->where('date', '>=', $desdeFecha)
-            ->orderBy('createdAt', 'desc')
-            ->chunk(1000, function ($records) {
+        $query = DB::connection('mysql_primary')->table('measurements')
+            ->where('teamId', $team);
+
+        if ($desdeFecha !== null) {
+            $query->where('date', '>=', $desdeFecha);
+        }
+
+        $query->orderBy('createdAt', 'desc')->chunk(1000, function ($records) {
                 $data = $records->map(function ($record) {
                     return [
                         'rpu' => $record->rpu,
@@ -152,8 +162,7 @@ class SyncMeasurements extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('medicionesHorariasCC')->upsert(
-                        $data,
+                    DB::connection('tenant')->table('medicionesHorariasCC')->upsert($data,
                         ['rpu', 'fecha', 'hora'],
                         ['rmu', 'energia', 'energiaOriginal', 'tipo', 'tipoOriginal', 'bloqueBIP', 'created_at']
                     );
@@ -161,15 +170,18 @@ class SyncMeasurements extends Command
             });
     }
 
-    private function syncCE($desdeFecha, $team)
+    protected function syncCE($desdeFecha, $team)
     {
         $this->info("Sincronizando CE para equipo $team...");
 
-        DB::connection('mysql_primary')->table('medicionesCentralElectrica')
-            ->where('teamId', $team)
-            ->where('fecha', '>=', $desdeFecha)
-            ->orderBy('createdAt', 'desc')
-            ->chunk(1000, function ($records) {
+        $query = DB::connection('mysql_primary')->table('medicionesCentralElectrica')
+            ->where('teamId', $team);
+
+        if ($desdeFecha !== null) {
+            $query->where('fecha', '>=', $desdeFecha);
+        }
+
+        $query->orderBy('createdAt', 'desc')->chunk(1000, function ($records) {
                 $data = $records->map(function ($record) {
                     return [
                         'nombre' => $record->nombre,
@@ -191,8 +203,7 @@ class SyncMeasurements extends Command
                 })->toArray();
 
                 if (!empty($data)) {
-                    DB::connection('tenant')->table('medicionesHorariasCE')->upsert(
-                        $data,
+                    DB::connection('tenant')->table('medicionesHorariasCE')->upsert($data,
                         ['nombre', 'unidad', 'fecha', 'hora'],
                         ['rmu', 'claveNodo', 'energia', 'bloqueBIP', 'energiaOriginal', 'tipo', 'tipoOriginal', 'created_at']
                     );
