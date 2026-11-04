@@ -181,8 +181,8 @@ class SyncCatalogData extends Command
 
                 if (!empty($data)) {
                     DB::connection('tenant')->table('plantasGeneracion')->upsert($data, ['id'], [
-                        'teamId', 'name', 'nivelTension', 'nodoP', 'zonaCarga', 
-                        'anexoElemento', 'aliasCliente', 'grupoTarifario', 
+                        'teamId', 'name', 'nivelTension', 'nodoP', 'zonaCarga',
+                        'anexoElemento', 'aliasCliente', 'grupoTarifario',
                         'cuentaDeOrdenDelECD', 'fechaInicioDeOperacion', 'rmu', 'ccAsociado', 'created_at'
                     ]);
                 }
@@ -423,7 +423,9 @@ class SyncCatalogData extends Command
 
                 if (!empty($data)) {
                     $keysToUpdate = array_keys(current($data));
-                    $keysToUpdate = array_filter($keysToUpdate, function($k) { return $k !== 'id'; });
+                    $keysToUpdate = array_filter($keysToUpdate, function ($k) {
+                        return $k !== 'id';
+                    });
                     DB::connection('tenant')->table('ofertasDeVentaDeEnergia')->upsert($data, ['id'], array_values($keysToUpdate));
                 }
             });
